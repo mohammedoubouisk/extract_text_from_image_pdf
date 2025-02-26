@@ -63,12 +63,49 @@ export class OcrController {
 //read pdf supported 
 
 
-@Post('pdf')
-@UseInterceptors(
-  FileInterceptor('files', {
-    storage: diskStorage({
+// @Post('pdf')
+// @UseInterceptors(
+//   FileInterceptor('file', {
+//     storage: diskStorage({
 
-      destination: './stock',
+//       destination: './stock',
+//       filename: (req, file, cb) => {
+//         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+//         const ext = file.originalname.split('.').pop();
+//         cb(null, `${file.fieldname}-${uniqueSuffix}.${ext}`);
+//       },
+//     }),
+//     fileFilter: (req, file, cb) => {
+//       const allowedMimeTypes = [
+//         'image/jpeg',
+//         'image/png',
+//         'image/tiff',
+//         'application/pdf',
+//       ];
+//       if (allowedMimeTypes.includes(file.mimetype)) {
+//         cb(null, true);
+//       } else {
+//         cb(new Error('Format de fichier non supporté'), false);
+//       }
+//     },
+//   }),
+  
+// )
+// async uploadFile(
+//   @UploadedFile() file: Express.Multer.File,
+//   @Query('language') language = 'ara+eng+fra',
+// ): Promise<OcrResponseDto> {
+//   return this.ocrService.extractTextFromImageAndPdf(file, language);
+// }
+
+
+//multiple pdf and images
+// Dans votre contrôleur
+@Post('batch')
+@UseInterceptors(
+  FilesInterceptor('files', 10, { // Limite de 10 fichiers par requête, ajustez selon vos besoins
+    storage: diskStorage({
+      destination: './stockage',
       filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
         const ext = file.originalname.split('.').pop();
@@ -89,13 +126,15 @@ export class OcrController {
       }
     },
   }),
-  
 )
-async uploadFile(
-  @UploadedFile() file: Express.Multer.File,
-  @Query('language') language = 'fra',
-): Promise<OcrResponseDto> {
-  return this.ocrService.extractTextFromImageAndPdf(file, language);
-}
-                           
+async uploadMultipleFiles(
+  @UploadedFiles() files: Array<Express.Multer.File>,
+  @Query('language') language = 'ara+eng+fra',
+): Promise<OcrResponseDto[]> {
+  console.log(`Received ${files.length} files for processing`);
+  // Traiter les fichiers en parallèle avec Promise.all
+  return Promise.all(
+    files.map(file => this.ocrService.extractTextFromImageAndPdf(file, language))
+  );
+}                   
 }   

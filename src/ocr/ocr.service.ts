@@ -186,46 +186,121 @@ export class OcrService {
   }
 
   //extrat data from pdf and images also
+  // async extractTextFromImageAndPdf(
+  //   file: Express.Multer.File,
+  //   language: string = 'ara+eng+fra',
+  // ): Promise<OcrResponseDto> {
+  //   try {
+  //     const fileExtension = path.extname(file.originalname).toLowerCase();
+  //     let extractedText = ''  
+  //     if (fileExtension === '.pdf') {
+  //       //read pdf
+  //       const dataBuffer = await fs.readFile(file.path);
+  //       // Extraire text avec pdf-parse
+  //       const pdfData = await pdfParse(dataBuffer);
+  //       extractedText = pdfData.text;
+  //     } else {
+  //       // if image we use tesseract to extract text
+  //       const worker = await createWorker(language);
+  //       const { data } = await worker.recognize(file.path);
+  //       await worker.terminate();
+  //       extractedText = data.text;
+  //     }
+  
+  //     // Le reste du code reste identique
+  //     const ocrEntity = new OcrEntity();
+  //     ocrEntity.extractedText = extractedText;
+  //     ocrEntity.originalFileName = file.originalname;
+  //     console.log(file)
+      
+  //     const savedEntity = await this.ocrRepository.save(ocrEntity);
+  //     console.log(savedEntity)
+
+  //     const response = new OcrResponseDto();
+  //     response.id = savedEntity.id;
+  //     response.extractedText = savedEntity.extractedText;
+  //     response.fileName = savedEntity.originalFileName;
+  //     response.createdAt = savedEntity.createdAt;
+  
+  //     return response;
+  //   } catch (error) {
+  //     this.logger.error(`Erreur lors de l'extraction OCR: ${error.message}`);
+  //     throw error;
+  //   } 
+  // }
+
+
   async extractTextFromImageAndPdf(
     file: Express.Multer.File,
-    language = 'fra',
+    language: string = 'ara+eng+fra',
   ): Promise<OcrResponseDto> {
     try {
+      console.log(`Processing file: ${file.originalname}, type: ${file.mimetype}`);
       const fileExtension = path.extname(file.originalname).toLowerCase();
       let extractedText = '';
-  
-      if (fileExtension === '.pdf') {
-        // Lire le fichier PDF
+      
+      // Détection plus précise du type de fichier (utilise le mimetype, plus fiable que l'extension)
+      if (file.mimetype === 'application/pdf') {
+        // Traitement PDF
         const dataBuffer = await fs.readFile(file.path);
         
-        // Extraire le texte avec pdf-parse
-        const pdfData = await pdfParse(dataBuffer);
-        extractedText = pdfData.text;
+        try {
+          // Extraire text avec pdf-parse
+          const pdfData = await pdfParse(dataBuffer);
+          extractedText = pdfData.text;
+          
+          // Si le texte extrait est très court, il peut s'agir d'un PDF scanné
+          // avec principalement des images, on essaie alors avec Tesseract
+          if (extractedText.trim().length < 100) {
+            console.log(`PDF with minimal text detected, trying OCR on PDF: ${file.originalname}`);
+            
+            // Conversion PDF en images à traiter avec Tesseract pourrait être ajoutée ici
+            // (Nécessite une bibliothèque comme pdf2pic ou pdf-poppler)
+            
+            // Pour l'instant, on garde le texte limité extrait de pdf-parse
+            extractedText += " [PDF contenant principalement des images - extraction de texte limitée]";
+          }
+        } catch (pdfError) {
+          console.error(`Failed to extract text from PDF: ${pdfError.message}`);
+          extractedText = "Erreur lors de l'extraction du texte du PDF, format potentiellement incompatible.";
+        }
       } else {
-        // Extraction depuis image avec Tesseract
-        const worker = await createWorker(language);
-        const { data } = await worker.recognize(file.path);
-        await worker.terminate();
-        extractedText = data.text;
+        // Traitement d'image
+        try {
+          const worker = await createWorker(language);
+          const { data } = await worker.recognize(file.path);
+          await worker.terminate();
+          extractedText = data.text;
+        } catch (imgError) {
+          console.error(`Failed to process image with Tesseract: ${imgError.message}`);
+          extractedText = "Erreur lors de l'extraction du texte de l'image.";
+        }
       }
-  
-      // Le reste du code reste identique
+      
+      // Enregistrer dans la base de données
       const ocrEntity = new OcrEntity();
       ocrEntity.extractedText = extractedText;
       ocrEntity.originalFileName = file.originalname;
       
       const savedEntity = await this.ocrRepository.save(ocrEntity);
       
+      // Préparer la réponse
       const response = new OcrResponseDto();
       response.id = savedEntity.id;
       response.extractedText = savedEntity.extractedText;
       response.fileName = savedEntity.originalFileName;
       response.createdAt = savedEntity.createdAt;
-  
+      
       return response;
     } catch (error) {
-      this.logger.error(`Erreur lors de l'extraction OCR: ${error.message}`);
-      throw error;
+      this.logger.error(`Erreur générale lors de l'extraction OCR: ${error.message}`);
+      
+      // Créer une réponse d'erreur
+      const errorResponse = new OcrResponseDto();
+      errorResponse.fileName = file.originalname;
+      errorResponse.extractedText = `Erreur de traitement: ${error.message}`;
+      
+      return errorResponse;
     } 
   }
 }
