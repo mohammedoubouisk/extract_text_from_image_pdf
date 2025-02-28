@@ -2,29 +2,58 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeor
 
 @Entity('ocr_results')
 export class OcrEntity {
-    @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ type: 'text' })
-  extractedText: string;
+  content: string;
+
+  @Column({type:"text"})
+  title:string
 
   @Column()
-  originalFileName: string;
-  @CreateDateColumn()
-  createdAt: Date;
+  file_url: string;
 
-  // Add columns to store region information
-  @Column({ nullable: true })
-  regionLeft: number;
+  @Column('text')
+  description: string;
 
-  @Column({ nullable: true })
-  regionTop: number;
+  @Column('simple-array')
+  keywords: string[];
 
-  @Column({ nullable: true })
-  regionWidth: number;
+  @CreateDateColumn({type:"timestamp"})
+  date_created: Date;
 
-  @Column({ nullable: true })
-  regionHeight: number;
+  @Column('json')
+  location: {
+    site: string;
+    locale: string;
+    armoires: string;
+    etageres: string;
+  };
+
+  @Column({ unique: true })
+  code_barre: string;
+
+  @Column('json')
+  metadata: {
+    auteur: string;
+    duree_conservation_ans: number;
+  };
+
+  @Column('json')
+  classification: {
+    serie: string;
+    dossier: string;
+    sous_dossier: string;
+    entite_source: string;
+  };
+
+  @Column({
+    type: 'enum',
+    enum: ['public', 'restreint', 'confidentiel'],
+    default: 'public'
+  })
+  access_restriction: string;
 
 
 }
